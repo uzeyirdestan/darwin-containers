@@ -477,18 +477,34 @@ final class DarwinVirtualMachine: NSObject, VZVirtualMachineDelegate {
     }
     
     func takeScreenshot() async -> NSImage? {
-        guard let framebuffer = self.virtualMachine._graphicsDevices.first?.framebuffers().first else {
-            return nil
-        }
+        if #available(macOS 14.0, *) {
+            guard let display = self.virtualMachine.graphicsDevices.first?.displays.first else {
+                return nil
+            }
         
-        do {
-            let screenshot = try await framebuffer.takeScreenshot()
-            return screenshot
-        } catch let e {
-            let _ = e
-            //print("Error taking screenshot: \(e)")
-            return nil
+            do {
+                let (screenshotAny, errorAny) = try await display._takeScreenshot()
+                guard let screenshot = screenshotAny as? NSImage?, let error = errorAny as? Error? else {
+                    print("Failed to cast screenshot or error")
+                    return nil
+                }
+
+                if let err = error {
+                    // Handle error
+                    print("Error capturing screenshot: \(err)")
+                } else if let img = screenshot {
+                    // Use the screenshot
+                    print("Screenshot captured successfully")
+                    return img
+                } else {
+                    print("No screenshot captured and no error reported.")
+                }
+            } catch {
+                // Handle any additional errors if something else went wrong
+                print("An unexpected error occurred: \(error)")
+            }
         }
+        return nil
     }
     
     func sendKeyEvents(_ events: [_VZKeyEvent]) {
@@ -534,3 +550,4 @@ final class DarwinVirtualMachine: NSObject, VZVirtualMachineDelegate {
         pointingDevice.sendPointerEvents([_VZScreenCoordinatePointerEvent(location: location, pressedButtons: 0)])
     }
 }
+
